@@ -17,6 +17,7 @@ const Quote = () => {
       },
     });
 
+    //await is added so we can wait  till we get data from backend
     const data = await req.json();
     if (data.status === "OK") {
       setQuote(data.quote);

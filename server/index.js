@@ -8,6 +8,10 @@ const jwt = require("jsonwebtoken");
 
 const bcrypt = require("bcryptjs");
 
+//config
+
+const config = require("config");
+
 const cors = require("cors");
 
 app.use(cors()); // to allow cross origin
@@ -16,11 +20,21 @@ app.use(express.json()); // this parse anything that comes as body into json
 
 mongoose.connect("mongodb://localhost:27017/MERNmini");
 
+//check if env variable is set or not before starting
+if (!config.get("jwtprivatekey")) {
+  console.log("FATAL ERROR: jwtprivatekey is not set");
+  process.exit(1);
+}
+
 // register api
 app.post("/api/register", async (req, res) => {
-  console.log(req.body);
-
   try {
+    // check code was added for registering user
+    let user = await User.findOne({ email: req.body.email });
+    if (user) {
+      return res.status(400).send("user with this email is already registered");
+    }
+
     const newPassword = await bcrypt.hash(req.body.password, 10);
     await User.create({
       name: req.body.name,
@@ -43,25 +57,29 @@ app.post("/api/login", async (req, res) => {
   if (!user) {
     return res, json({ status: "error", error: "invalid login" });
   }
-
+  //Check if password entered is corrrect or not
   const isPasswordValid = await bcrypt.compare(
     req.body.password,
     user.password
   );
-
+  // is password is correct-- give the token
   if (isPasswordValid) {
     const token = jwt.sign(
       {
         name: req.body.name,
         email: req.body.email,
       },
-      "secretjwtkey"
+      config.get("jwtprivatekey")
     );
 
     // ideally our jwt key should be stored in an  env variable
+    //"secretjwtkey" replaced with config appln setting
 
     return res.json({ status: "OK", user: token });
-  } else {
+  }
+
+  //////////////
+  else {
     return res.json({ status: "error", user: false });
   }
 });
@@ -73,7 +91,7 @@ app.get("/api/quote", async (req, res) => {
   const token = req.headers["x-access-token"];
 
   try {
-    const decoded = jwt.verify(token, "secretjwtkey");
+    const decoded = jwt.verify(token, config.get("jwtprivatekey"));
 
     //get email
     const email = decoded.email;
@@ -94,7 +112,7 @@ app.post("/api/quote", async (req, res) => {
   const token = req.headers["x-access-token"];
 
   try {
-    const decoded = jwt.verify(token, "secretjwtkey");
+    const decoded = jwt.verify(token, config.get("jwtprivatekey"));
 
     //get email
     const email = decoded.email;
